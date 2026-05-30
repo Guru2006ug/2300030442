@@ -1,6 +1,7 @@
 const express=require('express');
 const User=require('../Model/userModel');
 const LogEntry=require('../Model/logModel');
+const Notification=require('../Model/notificationModel');
 const bcrypt=require('bcrypt');
 const LogData=require('../Logging_Middleware/logData');
 const jwt=require('jsonwebtoken');
@@ -189,6 +190,19 @@ async function notifyUser(req,res){
         return res.status(404).json({error:'User not found'});
     }
     const dynamicMessage=resolveDynamicMessage(user,event,priority);
+    try{
+        const notification=new Notification({
+            studentId:user._id,
+            eventType:String(event).trim().toLowerCase(),
+            priority:String(priority).trim().toLowerCase(),
+            message:dynamicMessage,
+        });
+        await notification.save();
+    }
+    catch(error){
+        await LogData('userController.js','error','notifyUser','Error occurred while saving notification');
+        return res.status(500).json({error:'Internal server error'});
+    }
     const stream=activeStreams.get(String(userId));
     if(stream){
         sendSse(stream,'message',{message:dynamicMessage,event,priority});
@@ -203,4 +217,44 @@ async function notifyUser(req,res){
     res.status(200).json({message:'Notification processed', delivered: !!stream});
 }
 
-module.exports={signup, signin, getUserMessage, getNextLog, streamNotifications, notifyUser};
+async function getPlacementNotifications(req,res){
+    const {days}=req.query;
+    const match={
+        eventType:{ $in:['results','offer'] },
+    };
+    if(days){
+        const parsedDays=Number(days);
+        if(Number.isNaN(parsedDays) || parsedDays <= 0){
+            return res.status(400).json({error:'Days must be a positive number'});
+        }
+        const since=new Date(Date.now() - parsedDays*24*60*60*1000);
+        match.createdAt={ $gte: since };
+    }
+    try{
+        const students=await Notification.aggregate([
+            {
+                $match:match,
+            },
+            {
+                $group:{
+                    _id:'$studentId'
+                }
+            }
+        ]);
+        res.status(200).json({studentIds:students.map((item)=>item._id)});
+    }
+    catch(error){
+        await LogData('userController.js','error','getPlacementNotifications','Error occurred while fetching placement notifications');
+        res.status(500).json({error:'Internal server error'});
+    }
+}
+
+module.exports={
+    signup,
+    signin,
+    getUserMessage,
+    getNextLog,
+    streamNotifications,
+    notifyUser,
+    getPlacementNotifications,
+};

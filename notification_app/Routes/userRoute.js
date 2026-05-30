@@ -1,6 +1,6 @@
 const express=require('express');
 const router=express.Router();
-const {signup,signin,getUserMessage,getNextLog,streamNotifications,notifyUser}=require('../Controller/userController');
+const {signup,signin,getUserMessage,getNextLog,streamNotifications,notifyUser,getPlacementNotifications}=require('../Controller/userController');
 
 
 router
@@ -8,6 +8,7 @@ router
 .post('/signin',signin)
 .get('/stream',streamNotifications)
 .post('/notify',notifyUser)
+.get('/notifications/placements',getPlacementNotifications)
 .get('/logs/next',getNextLog)
 .get('/message/:id',getUserMessage);
 
