@@ -1,5 +1,6 @@
 const express=require('express');
 const User=require('../Model/userModel');
+const LogEntry=require('../Model/logModel');
 const bcrypt=require('bcrypt');
 const LogData=require('../Logging_Middleware/logData');
 const jwt=require('jsonwebtoken');
@@ -101,4 +102,28 @@ async function getUserMessage(req,res){
     }
 }
 
-module.exports={signup, signin, getUserMessage};
+async function getNextLog(req,res){
+    const {after}=req.query;
+    try{
+        let query={};
+        if(after){
+            const afterLog=await LogEntry.findById(after);
+            if(!afterLog){
+                return res.status(404).json({error:'Log not found'});
+            }
+            query={createdAt:{$gt: afterLog.createdAt}};
+        }
+        const nextLog=await LogEntry.findOne(query).sort({createdAt:1});
+        if(!nextLog){
+            return res.status(200).json({log:null, hasMore:false});
+        }
+        const hasMore=await LogEntry.exists({createdAt:{$gt: nextLog.createdAt}});
+        res.status(200).json({log:nextLog, hasMore:!!hasMore});
+    }
+    catch(error){
+        await LogData('userController.js','error','getNextLog','Error occurred while fetching logs');
+        res.status(500).json({error:'Internal server error'});
+    }
+}
+
+module.exports={signup, signin, getUserMessage, getNextLog};
