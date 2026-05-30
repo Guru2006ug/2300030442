@@ -325,3 +325,60 @@ Recommended basic path:
 
 # Stage 5
 
+## Shortcomings in the naive implementation
+- One big loop does email, DB insert, and push synchronously; one failure can stop the whole run.
+- No retry, no idempotency, and no way to resume for the 200 students where email failed.
+- Email API and DB calls are tightly coupled, so partial success is hard to reconcile.
+- No rate limiting or batching for 50,000 users.
+
+## What to do when 200 emails fail mid-way
+- Record delivery status in DB and retry only failed recipients.
+- Use a job queue with retries and backoff.
+- Keep an idempotency key for each notification + channel so duplicates are avoided.
+
+## Reliable and fast redesign
+Principles:
+- Write once to DB, then deliver asynchronously.
+- Use a queue per channel (email, in-app) and retry failed jobs.
+- Do not block the UI action on delivery completion.
+
+Should DB save and email send happen together?
+- No. Save the notification first, then send email. This ensures durability and retry capability.
+
+## Revised pseudocode
+```
+function notify_all(student_ids, message, event_type):
+	# 1) Persist notification records in bulk
+	notifications = []
+	for student_id in student_ids:
+		notifications.append({
+			student_id: student_id,
+			event_type: event_type,
+			message: message,
+			status_email: "pending",
+			status_in_app: "pending",
+			idempotency_key: hash(student_id, event_type, message)
+		})
+	bulk_insert(notifications)
+
+	# 2) Enqueue delivery jobs in batches
+	for batch in chunk(student_ids, 500):
+		enqueue("email_queue", { ids: batch, event_type: event_type })
+		enqueue("in_app_queue", { ids: batch, event_type: event_type })
+
+function email_worker(job):
+	for student_id in job.ids:
+		if already_sent(student_id, job.event_type, "email"):
+			continue
+		try:
+			send_email(student_id, job.event_type)
+			mark_sent(student_id, job.event_type, "email")
+		except:
+			retry_with_backoff(job, student_id)
+
+function in_app_worker(job):
+	for student_id in job.ids:
+		push_to_app(student_id, job.event_type)
+		mark_sent(student_id, job.event_type, "in_app")
+```
+
