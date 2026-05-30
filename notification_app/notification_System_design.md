@@ -1,7 +1,7 @@
 # Stage 1
 
 ## Project Overview
-This is a basic real-time notification system for students. After login, students receive placement-related updates (results, interview, offer, drive schedule) using an event type and message. Messages are resolved by event type (and optional priority); if no rule matches, the default message is used.
+This is a basic real-time notification system for students. After login, students receive placement-related updates (results, interview, offer, drive schedule) using an event type and priority. Notifications are stored in a `notifications` collection and can be pushed to logged-in users through SSE.
 
 ## Tech Stack
 - Node.js + Express
@@ -99,6 +99,31 @@ Response:
 Note:
 - This endpoint also stores the notification in the `notifications` collection.
 
+### GET /users/notifications/placements
+Return unique student IDs who received placement notifications (all time). Optional filter by last N days.
+
+Query params:
+- `days` (optional, positive number)
+
+Example:
+`GET /users/notifications/placements?days=7`
+
+Response:
+```
+{ "studentIds": ["...", "..."] }
+```
+
+### GET /users/logs/next
+Fetch logs one-by-one in order.
+
+Query params:
+- `after` (optional, log id for pagination)
+
+Response:
+```
+{ "log": { ... }, "hasMore": true }
+```
+
 ### GET /users/message/:id
 Get a dynamic message for a user based on event and priority.
 
@@ -128,8 +153,14 @@ Notification fields:
 - `message` (String, required)
 - `isRead` (Boolean, default `false`)
 
+Log fields:
+- `stack` (String, required)
+- `level` (String, required)
+- `package` (String, required)
+- `message` (String, required)
+
 ## Logging
-On successful sign in and message fetch, the app logs a structured object that includes `userId`, `event`, `priority`, and the resolved message.
+On successful sign in, message fetch, notification send, and log operations, the app stores a structured log record.
 
 # Stage 2
 Working with NoSQL is much more preferred rather than working with SQL Databse as when we scale up, their could arise more atributes that needs to be handled
@@ -220,6 +251,7 @@ db.notifications.aggregate([
 
 
 
-#
+# Stage 4
+
 
 
