@@ -5,6 +5,21 @@ const bcrypt=require('bcrypt');
 const LogData=require('../Logging_Middleware/logData');
 const jwt=require('jsonwebtoken');
 
+const activeStreams=new Map();
+
+function sendSse(res,eventName,payload){
+    res.write(`event: ${eventName}\n`);
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function getTokenFromRequest(req){
+    const authHeader=req.headers.authorization || '';
+    if(!authHeader.startsWith('Bearer ')){
+        return null;
+    }
+    return authHeader.slice('Bearer '.length).trim();
+}
+
 function resolveDynamicMessage(user,event,priority){
     if(!event || !priority || !Array.isArray(user.messageRules)){
         return user.message;
@@ -126,4 +141,66 @@ async function getNextLog(req,res){
     }
 }
 
-module.exports={signup, signin, getUserMessage, getNextLog};
+async function streamNotifications(req,res){
+    const token=getTokenFromRequest(req);
+    if(!token){
+        return res.status(401).json({error:'Missing token'});
+    }
+    let decoded;
+    try{
+        decoded=jwt.verify(token,process.env.JWT_SECRET);
+    }
+    catch(error){
+        return res.status(401).json({error:'Invalid token'});
+    }
+    const userId=decoded.id;
+    const user=await User.findById(userId);
+    if(!user){
+        return res.status(404).json({error:'User not found'});
+    }
+
+    res.status(200).set({
+        'Content-Type':'text/event-stream',
+        'Cache-Control':'no-cache',
+        'Connection':'keep-alive',
+    });
+
+    activeStreams.set(String(userId),res);
+    sendSse(res,'connected',{message:'Stream connected'});
+
+    const keepAlive=setInterval(()=>{
+        sendSse(res,'ping',{time:new Date().toISOString()});
+    },25000);
+
+    req.on('close',()=>{
+        clearInterval(keepAlive);
+        activeStreams.delete(String(userId));
+        res.end();
+    });
+}
+
+async function notifyUser(req,res){
+    const {userId,event,priority}=req.body;
+    if(!userId || !event || !priority){
+        return res.status(404).json({error:'All fields are required'});
+    }
+    const user=await User.findById(userId);
+    if(!user){
+        return res.status(404).json({error:'User not found'});
+    }
+    const dynamicMessage=resolveDynamicMessage(user,event,priority);
+    const stream=activeStreams.get(String(userId));
+    if(stream){
+        sendSse(stream,'message',{message:dynamicMessage,event,priority});
+    }
+    await LogData('userController.js','info','notifyUser',JSON.stringify({
+        userId: user._id,
+        event,
+        priority,
+        message: dynamicMessage,
+        delivered: !!stream,
+    }));
+    res.status(200).json({message:'Notification processed', delivered: !!stream});
+}
+
+module.exports={signup, signin, getUserMessage, getNextLog, streamNotifications, notifyUser};
