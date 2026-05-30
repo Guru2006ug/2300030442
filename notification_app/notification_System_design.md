@@ -401,8 +401,6 @@ Efficiency for streaming updates:
 - Keep the min-heap in memory for each user.
 - On each new notification, compute score and update heap in O(log N).
 
-Reference code:
-- See [notification_app/priority_inbox.js](notification_app/priority_inbox.js)
 
 
 
