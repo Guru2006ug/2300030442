@@ -253,5 +253,75 @@ db.notifications.aggregate([
 
 # Stage 4
 
+When notifications are fetched on every page load, the database is hit too frequently and performance drops. Below are practical improvements and tradeoffs.
 
+## 1) Fetch Only What Changed (Delta Fetch)
+Strategy:
+- Track `lastSeenAt` per student and fetch only notifications created after that timestamp.
+
+Why it helps:
+- Reduces query volume and payload size.
+
+Tradeoffs:
+- Requires storing and updating `lastSeenAt` reliably.
+
+## 2) Pagination + Limits
+Strategy:
+- Return the latest N notifications (e.g., 20 or 50) and paginate when user scrolls.
+
+Why it helps:
+- Prevents large full scans and large payloads.
+
+Tradeoffs:
+- Users may need extra requests to see older notifications.
+
+## 3) Use Indexes
+Strategy:
+- Add composite index on `studentId`, `isRead`, `createdAt`.
+
+Why it helps:
+- Query becomes index-backed and avoids full table scans.
+
+Tradeoffs:
+- Slightly slower writes and extra storage for indexes.
+
+## 4) Push Instead of Poll
+Strategy:
+- Keep SSE connection open and push new notifications as they happen.
+
+Why it helps:
+- Reduces repeated page-load queries and improves real-time UX.
+
+Tradeoffs:
+- Requires server memory for active connections.
+
+## 5) Cache Recent Notifications
+Strategy:
+- Cache the latest notifications per student (Redis) and read from cache first.
+
+Why it helps:
+- Reduces repeated DB reads during bursts.
+
+Tradeoffs:
+- Cache invalidation and extra infra cost.
+
+## 6) Background Fan-out
+Strategy:
+- Use a queue to fan-out notifications to users asynchronously.
+
+Why it helps:
+- Spreads load and smooths traffic spikes.
+
+Tradeoffs:
+- Added complexity and eventual consistency.
+
+Recommended basic path:
+1. Add pagination + indexes
+2. Use SSE for real-time delivery
+3. Add delta fetch (lastSeenAt)
+4. Cache hot data if load remains high
+
+
+
+# Stage 5
 
