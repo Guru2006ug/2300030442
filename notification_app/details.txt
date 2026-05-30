@@ -1,0 +1,34 @@
+{
+    "email": "2300030442cseird@gmail.com",
+    "name": "mopuri guru shailesh",
+    "rollNo": "2300030442",
+    "accessCode": "AvrAAK",
+    "clientID": "fa82037f-1530-4640-89f3-d239e2a50364",
+    "clientSecret": "TmhJaYQQWPKjBJAF"
+}
+
+
+{
+    "token_type": "Bearer",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJNYXBDbGFpbXMiOnsiYXVkIjoiaHR0cDovLzIwLjI0NC41Ni4xNDQvZXZhbHVhdGlvbi1zZXJ2aWNlIiwiZW1haWwiOiIyMzAwMDMwNDQyY3NlaXJkQGdtYWlsLmNvbSIsImV4cCI6MTc4MDExOTAzMSwiaWF0IjoxNzgwMTE4MTMxLCJpc3MiOiJBZmZvcmQgTWVkaWNhbCBUZWNobm9sb2dpZXMgUHJpdmF0ZSBMaW1pdGVkIiwianRpIjoiNjA0NjdmNmItOThiMS00YzM5LWI3MTItNjFmYmU1NTdlNjU1IiwibG9jYWxlIjoiZW4tSU4iLCJuYW1lIjoibW9wdXJpIGd1cnUgc2hhaWxlc2giLCJzdWIiOiJmYTgyMDM3Zi0xNTMwLTQ2NDAtODlmMy1kMjM5ZTJhNTAzNjQifSwiZW1haWwiOiIyMzAwMDMwNDQyY3NlaXJkQGdtYWlsLmNvbSIsIm5hbWUiOiJtb3B1cmkgZ3VydSBzaGFpbGVzaCIsInJvbGxObyI6IjIzMDAwMzA0NDIiLCJhY2Nlc3NDb2RlIjoiQXZyQUFLIiwiY2xpZW50SUQiOiJmYTgyMDM3Zi0xNTMwLTQ2NDAtODlmMy1kMjM5ZTJhNTAzNjQiLCJjbGllbnRTZWNyZXQiOiJUbWhKYVlRUVdQS2pCSkFGIn0._K_6m9mR9qp27K1SGBbrvE1eL7qJTexUdVUeoTKrQic",
+    "expires_in": 1780119031
+}
+
+
+
+Log(stack,level,package,message)
+
+vehicle_maintaince_Scheduler folder
+notification_System__design.md
+notification_app_be folder
+
+
+cache
+controller
+cron_job
+db
+domain
+handler
+repository
+route
+service
