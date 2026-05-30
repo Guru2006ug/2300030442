@@ -382,3 +382,27 @@ function in_app_worker(job):
 		mark_sent(student_id, job.event_type, "in_app")
 ```
 
+# Stage 6
+
+## Priority Inbox (Top N)
+Goal:
+- Always show the top N unread notifications based on type weight and recency.
+
+Priority scoring:
+- Weight order: `placement > result > event`.
+- Score combines weight and timestamp (newer is higher).
+
+Implementation notes:
+- Fetch notifications from the API and compute a score for each.
+- Maintain a min-heap of size N for O(n log N) selection.
+- When new notifications arrive, compare score with heap top and replace if higher.
+
+Efficiency for streaming updates:
+- Keep the min-heap in memory for each user.
+- On each new notification, compute score and update heap in O(log N).
+
+Reference code:
+- See [notification_app/priority_inbox.js](notification_app/priority_inbox.js)
+
+
+

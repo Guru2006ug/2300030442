@@ -5,8 +5,154 @@ const Notification=require('../Model/notificationModel');
 const bcrypt=require('bcrypt');
 const LogData=require('../Logging_Middleware/logData');
 const jwt=require('jsonwebtoken');
+const http=require('http');
 
 const activeStreams=new Map();
+
+const PRIORITY_API_URL='http://4.224.186.213/evaluation-service/notifications';
+const TYPE_WEIGHT={
+    placement:3,
+    result:2,
+    event:1,
+};
+
+function normalizeType(type){
+    return String(type || '').trim().toLowerCase();
+}
+
+function parseTimestamp(value){
+    if(!value){
+        return 0;
+    }
+    const normalized=String(value).trim().replace(' ','T');
+    const withZone=normalized.endsWith('Z') ? normalized : `${normalized}Z`;
+    const date=new Date(withZone);
+    if(Number.isNaN(date.getTime())){
+        return 0;
+    }
+    return date.getTime();
+}
+
+function scoreNotification(item){
+    const weight=TYPE_WEIGHT[normalizeType(item.Type)] || 0;
+    const ts=parseTimestamp(item.Timestamp);
+    return weight*1_000_000_000_000 + ts;
+}
+
+class MinHeap{
+    constructor(){
+        this.items=[];
+    }
+
+    size(){
+        return this.items.length;
+    }
+
+    peek(){
+        return this.items[0];
+    }
+
+    push(value){
+        this.items.push(value);
+        this.bubbleUp(this.items.length-1);
+    }
+
+    pop(){
+        if(this.items.length===1){
+            return this.items.pop();
+        }
+        const top=this.items[0];
+        this.items[0]=this.items.pop();
+        this.bubbleDown(0);
+        return top;
+    }
+
+    bubbleUp(index){
+        while(index>0){
+            const parent=Math.floor((index-1)/2);
+            if(this.items[parent].score<=this.items[index].score){
+                break;
+            }
+            [this.items[parent],this.items[index]]=[this.items[index],this.items[parent]];
+            index=parent;
+        }
+    }
+
+    bubbleDown(index){
+        const length=this.items.length;
+        while(true){
+            const left=index*2+1;
+            const right=index*2+2;
+            let smallest=index;
+
+            if(left<length && this.items[left].score<this.items[smallest].score){
+                smallest=left;
+            }
+            if(right<length && this.items[right].score<this.items[smallest].score){
+                smallest=right;
+            }
+            if(smallest===index){
+                break;
+            }
+            [this.items[smallest],this.items[index]]=[this.items[index],this.items[smallest]];
+            index=smallest;
+        }
+    }
+}
+
+function pickTopN(notifications,n){
+    const heap=new MinHeap();
+    for(const item of notifications){
+        const score=scoreNotification(item);
+        const entry={item,score};
+        if(heap.size()<n){
+            heap.push(entry);
+            continue;
+        }
+        if(score>heap.peek().score){
+            heap.pop();
+            heap.push(entry);
+        }
+    }
+    return heap.items
+        .sort((a,b)=>b.score-a.score)
+        .map((entry)=>entry.item);
+}
+
+function fetchPriorityNotifications(token){
+    return new Promise((resolve,reject)=>{
+        const url=new URL(PRIORITY_API_URL);
+        const options={
+            hostname:url.hostname,
+            port:url.port || 80,
+            path:`${url.pathname}${url.search}`,
+            method:'GET',
+            headers:{
+                Authorization:`Bearer ${token}`,
+            },
+        };
+        const req=http.request(options,(res)=>{
+            let data='';
+            res.on('data',(chunk)=>{
+                data+=chunk;
+            });
+            res.on('end',()=>{
+                if(res.statusCode<200 || res.statusCode>=300){
+                    return reject(new Error(`API error ${res.statusCode}: ${data}`));
+                }
+                try{
+                    const parsed=JSON.parse(data);
+                    resolve(parsed);
+                }
+                catch(error){
+                    reject(error);
+                }
+            });
+        });
+        req.on('error',(error)=>reject(error));
+        req.end();
+    });
+}
 
 function sendSse(res,eventName,payload){
     res.write(`event: ${eventName}\n`);
@@ -249,6 +395,23 @@ async function getPlacementNotifications(req,res){
     }
 }
 
+async function getPriorityInbox(req,res){
+    const token=process.env.NOTIFY_API_TOKEN;
+    if(!token){
+        return res.status(500).json({error:'Missing NOTIFY_API_TOKEN'});
+    }
+    try{
+        const payload=await fetchPriorityNotifications(token);
+        const notifications=Array.isArray(payload.notifications) ? payload.notifications : [];
+        const top=pickTopN(notifications,10);
+        res.status(200).json({items:top});
+    }
+    catch(error){
+        await LogData('userController.js','error','getPriorityInbox',String(error.message || error));
+        res.status(500).json({error:'Internal server error'});
+    }
+}
+
 module.exports={
     signup,
     signin,
@@ -257,4 +420,5 @@ module.exports={
     streamNotifications,
     notifyUser,
     getPlacementNotifications,
+    getPriorityInbox,
 };
